@@ -44,6 +44,47 @@ export type AgentVoiceTuning = {
   allowEmoji?: boolean;
 };
 
+/** Amazon Nova 2 Sonic — speech-to-speech model settings (operator-facing config) */
+export type NovaSonicSettings = {
+  enabled: boolean;
+  voiceId:
+    | "tiffany" | "matthew" | "amy" | "olivia" | "kiara" | "arjun"
+    | "ambre" | "florian" | "beatrice" | "lorenzo"
+    | "tina" | "lennart" | "lupe" | "carlos" | "carolina" | "leo";
+  speakingStyle: "conversational" | "generative" | "expressive";
+  speakingRate: number;
+  pitch: number;
+  polyglot: boolean;
+  adaptiveProsody: boolean;
+  crossModalText: boolean;
+  outputSampleRateHz: 16000 | 24000;
+  bargeIn: boolean;
+  noiseSuppression: boolean;
+  /** Nova `endpointingSensitivity` — how patient the AI is before responding */
+  responseSpeed: "snappy" | "balanced" | "patient";
+  /** Maps to Nova `inferenceConfiguration.temperature` (variability of replies) */
+  conversationStyle: "scripted" | "balanced" | "creative";
+  /** Auto language detection — "Detect when a caller speaks another language" */
+  autoDetectLanguage: boolean;
+  /** Bedrock Knowledge Base / LangChain RAG grounding */
+  knowledgeBaseEnabled: boolean;
+  knowledgeBaseSource: string;
+  /** Voice greeting (model-start-first cross-modal text pattern) */
+  greeting: string;
+  /** Phrase used while async tools (lookups) are running */
+  holdPhrase: string;
+  /** Operator policy on top of Nova's 8-min session cap */
+  maxCallMinutes: number;
+  /** "This call may be answered by an AI assistant." */
+  aiDisclosure: boolean;
+  /** Record call audio for QA, dispute resolution, training */
+  recordingEnabled: boolean;
+  /** Generate searchable transcripts in addition to recordings */
+  transcriptionEnabled: boolean;
+  /** Auto-played legal blurb before the call connects when recording is on */
+  legalDisclosure: string;
+};
+
 export type VoiceState = {
   unified: boolean;
   brandingTone: string;
@@ -63,6 +104,7 @@ export type VoiceState = {
   verticalOverrides: VerticalOverride[];
   propertyOverrides: PropertyOverride[];
   agentTuning: AgentVoiceTuning[];
+  novaSonic: NovaSonicSettings;
 };
 
 const DEFAULT_STATE: VoiceState = {
@@ -125,6 +167,33 @@ const DEFAULT_STATE: VoiceState = {
     { agentId: "10", agentName: "Maintenance AI", toneOverride: "Efficient and reassuring", responseLength: "concise", personality: "Focused on getting things fixed fast", customInstructions: "Always provide an estimated timeline. Follow up after resolution.", allowEmoji: false },
     { agentId: "1", agentName: "Payments AI", toneOverride: "Empathetic and solution-focused", responseLength: "standard", personality: "Understanding about financial situations", customInstructions: "Never be judgmental about late payments. Always offer payment plan options when applicable.", allowEmoji: false },
   ],
+  novaSonic: {
+    enabled: true,
+    voiceId: "tiffany",
+    speakingStyle: "generative",
+    speakingRate: 1.0,
+    pitch: 0,
+    polyglot: false,
+    adaptiveProsody: true,
+    crossModalText: true,
+    outputSampleRateHz: 24000,
+    bargeIn: true,
+    noiseSuppression: true,
+    responseSpeed: "balanced",
+    conversationStyle: "balanced",
+    autoDetectLanguage: true,
+    knowledgeBaseEnabled: true,
+    knowledgeBaseSource: "Property handbook & FAQ",
+    greeting: "Thank you for calling {property}. How can I help you today?",
+    holdPhrase: "One moment while I pull that up for you.",
+    maxCallMinutes: 15,
+    aiDisclosure: true,
+    recordingEnabled: true,
+    transcriptionEnabled: true,
+    legalDisclosure:
+      "This call is being recorded and transcribed for quality assurance and training purposes. " +
+      "If you do not consent to recording, please press 9 or stay on the line to be connected to a live agent.",
+  },
 };
 
 type VoiceContextValue = VoiceState & {
@@ -151,7 +220,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const data = JSON.parse(raw);
-        setState((prev) => ({ ...prev, ...data }));
+        setState((prev) => ({
+          ...prev,
+          ...data,
+          // Deep-merge nova settings so newly-added fields fall back to defaults.
+          novaSonic: { ...prev.novaSonic, ...(data.novaSonic ?? {}) },
+        }));
       }
     } catch {
       // ignore

@@ -31,6 +31,7 @@ import { useEscalations } from "@/lib/escalations-context";
 import { useConversations } from "@/lib/conversations-context";
 import { useClickToCallDemo } from "@/lib/click-to-call-demo-context";
 import { useConversationsDemo } from "@/lib/conversations-demo-context";
+import { useVoiceV1_1 } from "@/lib/voice-v1-1-context";
 
 const NAV_ITEMS = [
   { label: "OXP", active: true },
@@ -59,6 +60,7 @@ export function EntrataTopNav() {
   const { items: escalations } = useEscalations();
   const { items: conversations } = useConversations();
   const { clickToCallEnabled, toggleClickToCallEnabled } = useClickToCallDemo();
+  const { isVoiceV1_1, toggleVoiceV1_1 } = useVoiceV1_1();
   const { showRoadmap, setShowRoadmap } = useRoadmap();
 
   const currentUser = useMemo(() => getCurrentUser(role), [getCurrentUser, role]);
@@ -336,6 +338,45 @@ export function EntrataTopNav() {
                         <p style={{ fontSize: 12, fontWeight: 600, color: "#1a1a1a" }}>Click To Call</p>
                         <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginTop: 1 }}>
                           Show call controls on Communications (prototype)
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleVoiceV1_1}
+                      className="flex items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors"
+                      style={{ background: isVoiceV1_1 ? "rgba(99,102,241,0.08)" : "transparent" }}
+                    >
+                      <div
+                        style={{
+                          width: 30,
+                          height: 17,
+                          borderRadius: 9,
+                          background: isVoiceV1_1 ? "#6366f1" : "#D4D4D4",
+                          position: "relative",
+                          transition: "background 150ms",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 13,
+                            height: 13,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            position: "absolute",
+                            top: 2,
+                            left: isVoiceV1_1 ? 15 : 2,
+                            transition: "left 150ms",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                          }}
+                        />
+                      </div>
+                      <div className="text-left">
+                        <p style={{ fontSize: 12, fontWeight: 600, color: "#1a1a1a" }}>Voice/Brand 1.1</p>
+                        <p style={{ fontSize: 10, color: "rgba(0,0,0,0.45)", marginTop: 1 }}>
+                          Company defaults only — hide vertical, property, and agent levels
                         </p>
                       </div>
                     </button>

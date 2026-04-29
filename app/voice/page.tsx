@@ -7,8 +7,10 @@ import {
   type PropertyOverride,
   type AgentVoiceTuning,
   type VerticalOverride,
+  type NovaSonicSettings as NovaSonicSettingsType,
 } from "@/lib/voice-context";
 import { useAgents } from "@/lib/agents-context";
+import { useVoiceV1_1 } from "@/lib/voice-v1-1-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,12 +18,16 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   Building2, Layers, Home,
   ChevronRight, Plus, Pencil, X, Trash2,
   GraduationCap, Heart, Briefcase,
   RotateCcw,
+  AudioLines, Play, Pause, Globe2, Mic, UserRound,
+  MessageSquareQuote, Clock, ShieldCheck,
+  CircleDot, FileText, Scale, ChevronDown,
 } from "lucide-react";
 
 /* ─── Constants ─── */
@@ -46,12 +52,114 @@ const MOCK_PROPERTIES = [
   { name: "Metro Business Center", vertical: "Commercial", units: 45 },
 ];
 
+/* ─── AI Voice — property manager friendly catalog ─── */
+// Internally backed by Amazon Nova 2 Sonic voice IDs, but exposed
+// to operators as simple "gender + accent" choices.
+
+type VoiceGender = "female" | "male";
+type VoiceAccent = "american" | "british" | "australian" | "indian";
+type VoicePace = "relaxed" | "natural" | "brisk";
+type VoicePersonality = "friendly" | "professional" | "energetic";
+
+const VOICE_PRESETS: Array<{
+  gender: VoiceGender;
+  accent: VoiceAccent;
+  voiceId: NovaSonicSettingsType["voiceId"];
+  label: string;
+  blurb: string;
+  multilingualCapable: boolean;
+}> = [
+  { gender: "female", accent: "american",   voiceId: "tiffany", label: "American — Female",   blurb: "Warm, approachable. The most common choice for US properties.", multilingualCapable: true  },
+  { gender: "male",   accent: "american",   voiceId: "matthew", label: "American — Male",     blurb: "Confident and professional. Versatile for any conversation.", multilingualCapable: true  },
+  { gender: "female", accent: "british",    voiceId: "amy",     label: "British — Female",    blurb: "Polished British accent. Great for upscale or boutique properties.", multilingualCapable: false },
+  { gender: "female", accent: "australian", voiceId: "olivia",  label: "Australian — Female", blurb: "Friendly Australian accent — relaxed and approachable.", multilingualCapable: false },
+  { gender: "female", accent: "indian",     voiceId: "kiara",   label: "Indian — Female",     blurb: "Indian-English accent. Comfortable in English and Hindi.", multilingualCapable: false },
+  { gender: "male",   accent: "indian",     voiceId: "arjun",   label: "Indian — Male",       blurb: "Indian-English accent. Comfortable in English and Hindi.", multilingualCapable: false },
+];
+
+const ACCENT_OPTIONS: Array<{ id: VoiceAccent; label: string; sub: string }> = [
+  { id: "american",   label: "American",   sub: "Standard US English" },
+  { id: "british",    label: "British",    sub: "UK English" },
+  { id: "australian", label: "Australian", sub: "AU English" },
+  { id: "indian",     label: "Indian",     sub: "Indian English" },
+];
+
+const PACE_OPTIONS: Array<{ id: VoicePace; rate: number; label: string; sub: string }> = [
+  { id: "relaxed", rate: 0.92, label: "Relaxed", sub: "Slower, calmer" },
+  { id: "natural", rate: 1.00, label: "Natural", sub: "Default pace" },
+  { id: "brisk",   rate: 1.08, label: "Brisk",   sub: "A bit faster" },
+];
+
+const PERSONALITY_OPTIONS: Array<{
+  id: VoicePersonality;
+  style: NovaSonicSettingsType["speakingStyle"];
+  label: string;
+  sub: string;
+}> = [
+  { id: "friendly",     style: "conversational", label: "Friendly",     sub: "Warm and casual"  },
+  { id: "professional", style: "generative",     label: "Professional", sub: "Polished default" },
+  { id: "energetic",    style: "expressive",     label: "Energetic",    sub: "Lively and animated" },
+];
+
+/* Conversation behavior — maps to Nova `endpointingSensitivity` */
+const RESPONSE_SPEED_OPTIONS: Array<{
+  id: NovaSonicSettingsType["responseSpeed"];
+  label: string;
+  sub: string;
+}> = [
+  { id: "snappy",   label: "Snappy",   sub: "Quick replies (~1.5s)" },
+  { id: "balanced", label: "Balanced", sub: "Default (~1.75s)" },
+  { id: "patient",  label: "Patient",  sub: "Wait longer (~2s)" },
+];
+
+/* Conversation style — maps to Nova `temperature` */
+const CONVERSATION_STYLE_OPTIONS: Array<{
+  id: NovaSonicSettingsType["conversationStyle"];
+  label: string;
+  sub: string;
+}> = [
+  { id: "scripted", label: "Consistent", sub: "Same answers every time" },
+  { id: "balanced", label: "Balanced",   sub: "A little variety" },
+  { id: "creative", label: "Natural",    sub: "More conversational variation" },
+];
+
+/** Recommended consent script — used as default and "Reset to recommended" target. */
+const RECOMMENDED_LEGAL_DISCLOSURE =
+  "This call is being recorded and transcribed for quality assurance and training purposes. " +
+  "If you do not consent to recording, please press 9 or stay on the line to be connected to a live agent.";
+
+/** Languages Nova 2 Sonic can understand and respond in (when using a polyglot voice). */
+const SUPPORTED_LANGUAGES: Array<{ code: string; name: string; flag: string }> = [
+  { code: "en", name: "English",    flag: "🇺🇸" },
+  { code: "es", name: "Spanish",    flag: "🇪🇸" },
+  { code: "fr", name: "French",     flag: "🇫🇷" },
+  { code: "de", name: "German",     flag: "🇩🇪" },
+  { code: "it", name: "Italian",    flag: "🇮🇹" },
+  { code: "pt", name: "Portuguese", flag: "🇵🇹" },
+  { code: "hi", name: "Hindi",      flag: "🇮🇳" },
+];
+
+function findPresetByVoiceId(id: NovaSonicSettingsType["voiceId"]) {
+  return VOICE_PRESETS.find((p) => p.voiceId === id) ?? VOICE_PRESETS[0];
+}
+
+function findPreset(gender: VoiceGender, accent: VoiceAccent) {
+  return VOICE_PRESETS.find((p) => p.gender === gender && p.accent === accent);
+}
+
+function rateToPace(rate: number): VoicePace {
+  if (rate <= 0.95) return "relaxed";
+  if (rate >= 1.05) return "brisk";
+  return "natural";
+}
+
 
 /* ─── Main Page ─── */
 
 export default function VoicePage() {
   const voice = useVoice();
   const { agents } = useAgents();
+  const { isVoiceV1_1 } = useVoiceV1_1();
   const [activeTab, setActiveTab] = useState("company");
   const [editingVertical, setEditingVertical] = useState<string | null>(null);
   const [propertyDialogOpen, setPropertyDialogOpen] = useState(false);
@@ -62,6 +170,8 @@ export default function VoicePage() {
     [agents],
   );
 
+  const effectiveTab = isVoiceV1_1 ? "company" : activeTab;
+
   return (
     <>
       <PageHeader
@@ -69,18 +179,22 @@ export default function VoicePage() {
         description="Define how your AI agents communicate — set the tone, personality, and brand guidelines at every level from company-wide defaults down to individual agents."
       />
 
-          <CascadeVisual activeLevel={activeTab} onLevelClick={setActiveTab} />
+          <CascadeVisual activeLevel={effectiveTab} onLevelClick={setActiveTab} v1_1={isVoiceV1_1} />
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="company">Company Defaults</TabsTrigger>
-              <TabsTrigger value="verticals">Verticals</TabsTrigger>
-              <TabsTrigger value="properties">Properties</TabsTrigger>
-              <TabsTrigger value="agents">Agent Tuning</TabsTrigger>
-            </TabsList>
+          <Tabs value={effectiveTab} onValueChange={setActiveTab}>
+            {!isVoiceV1_1 && (
+              <TabsList className="mb-6">
+                <TabsTrigger value="company">Company Defaults</TabsTrigger>
+                <TabsTrigger value="verticals">Verticals</TabsTrigger>
+                <TabsTrigger value="properties">Properties</TabsTrigger>
+                <TabsTrigger value="agents">Agent Tuning</TabsTrigger>
+              </TabsList>
+            )}
 
             {/* ── COMPANY DEFAULTS ── */}
             <TabsContent value="company" className="space-y-6">
+              {!isVoiceV1_1 && (
+              <>
               <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
                   <CardHeader className="pb-3">
@@ -190,6 +304,15 @@ export default function VoicePage() {
                   </CardContent>
                 </Card>
               </div>
+              </>
+              )}
+
+              {isVoiceV1_1 && (
+                <AIVoiceCard
+                  settings={voice.novaSonic}
+                  onUpdate={(updates) => voice.update({ novaSonic: { ...voice.novaSonic, ...updates } })}
+                />
+              )}
             </TabsContent>
 
             {/* ── VERTICALS ── */}
@@ -473,13 +596,14 @@ export default function VoicePage() {
 
 /* ─── Cascade Visualization ─── */
 
-function CascadeVisual({ activeLevel, onLevelClick }: { activeLevel: string; onLevelClick: (level: string) => void }) {
-  const levels = [
+function CascadeVisual({ activeLevel, onLevelClick, v1_1 }: { activeLevel: string; onLevelClick: (level: string) => void; v1_1?: boolean }) {
+  const allLevels = [
     { id: "company", label: "Company", desc: "Portfolio defaults", icon: Building2 },
     { id: "verticals", label: "Vertical", desc: "By property type", icon: Layers },
     { id: "properties", label: "Property", desc: "Individual overrides", icon: Home },
     { id: "agents", label: "Agent", desc: "Per-agent tuning", icon: null },
   ];
+  const levels = v1_1 ? allLevels.filter((l) => l.id === "company") : allLevels;
 
   return (
     <div className="mb-6 flex items-center gap-1 overflow-x-auto pb-1">
@@ -569,6 +693,620 @@ function ToneSliders({
         </div>
       ))}
     </>
+  );
+}
+
+/* ─── AI Voice — Property manager friendly settings ─── */
+
+function AIVoiceCard({
+  settings,
+  onUpdate,
+}: {
+  settings: NovaSonicSettingsType;
+  onUpdate: (updates: Partial<NovaSonicSettingsType>) => void;
+}) {
+  const [previewing, setPreviewing] = useState(false);
+  const currentPreset = findPresetByVoiceId(settings.voiceId);
+  const currentGender = currentPreset.gender;
+  const currentAccent = currentPreset.accent;
+  const currentPace = rateToPace(settings.speakingRate);
+  const currentPersonality =
+    PERSONALITY_OPTIONS.find((p) => p.style === settings.speakingStyle)?.id ?? "professional";
+
+  // Accents that have a voice for the currently selected gender.
+  const availableAccentsForGender = new Set(
+    VOICE_PRESETS.filter((p) => p.gender === currentGender).map((p) => p.accent),
+  );
+
+  // Green when on, neutral when off — applied to every Switch in the card.
+  const greenSwitch = "data-[state=checked]:bg-emerald-500 dark:data-[state=checked]:bg-emerald-500";
+
+  const playSample = () => {
+    if (previewing) {
+      setPreviewing(false);
+      return;
+    }
+    setPreviewing(true);
+    window.setTimeout(() => setPreviewing(false), 2400);
+  };
+
+  const setGender = (gender: VoiceGender) => {
+    if (gender === currentGender) return;
+    // Try to keep the same accent; fall back to any available accent for that gender.
+    const target =
+      findPreset(gender, currentAccent) ??
+      VOICE_PRESETS.find((p) => p.gender === gender) ??
+      VOICE_PRESETS[0];
+    onUpdate({
+      voiceId: target.voiceId,
+      // Polyglot just mirrors voice capability — no longer a separate user toggle.
+      polyglot: target.multilingualCapable,
+    });
+  };
+
+  const setAccent = (accent: VoiceAccent) => {
+    if (accent === currentAccent) return;
+    const target =
+      findPreset(currentGender, accent) ??
+      VOICE_PRESETS.find((p) => p.accent === accent) ??
+      VOICE_PRESETS[0];
+    onUpdate({
+      voiceId: target.voiceId,
+      polyglot: target.multilingualCapable,
+    });
+  };
+
+  const setPace = (pace: VoicePace) => {
+    const opt = PACE_OPTIONS.find((p) => p.id === pace);
+    if (opt) onUpdate({ speakingRate: opt.rate });
+  };
+
+  const setPersonality = (id: VoicePersonality) => {
+    const opt = PERSONALITY_OPTIONS.find((p) => p.id === id);
+    if (opt) onUpdate({ speakingStyle: opt.style });
+  };
+
+  const isDefaultLegal = settings.legalDisclosure.trim() === RECOMMENDED_LEGAL_DISCLOSURE.trim();
+  const recordingActive = settings.recordingEnabled || settings.transcriptionEnabled;
+
+  return (
+    <Card className="border-violet-200/60 bg-gradient-to-br from-violet-50/50 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 shadow-sm">
+              <AudioLines className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-base">AI Voice</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                How your AI sounds when speaking with leads and residents on the phone.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {settings.enabled ? "On" : "Off"}
+            </span>
+            <Switch
+              checked={settings.enabled}
+              onCheckedChange={(checked) => onUpdate({ enabled: checked })}
+              aria-label="Enable AI voice"
+              className={greenSwitch}
+            />
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className={cn("space-y-8 pt-2", !settings.enabled && "pointer-events-none opacity-60")}>
+
+        {/* ───────────── 1. How it sounds ───────────── */}
+        <Section
+          eyebrow="Step 1"
+          title="How it sounds"
+          description="Pick a voice and accent — that's it."
+        >
+          {/* Voice gender — large cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { id: "female" as const, label: "Female",  sub: "Warm, approachable" },
+              { id: "male"   as const, label: "Male",    sub: "Confident, professional" },
+            ]).map((g) => {
+              const active = currentGender === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setGender(g.id)}
+                  disabled={!settings.enabled}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg border p-3 text-left transition-all",
+                    active
+                      ? "border-violet-400 bg-background ring-2 ring-violet-200 dark:ring-violet-900/60"
+                      : "border-border bg-background/40 hover:border-violet-200 hover:bg-background",
+                  )}
+                >
+                  <div className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                    g.id === "female"
+                      ? "bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300"
+                      : "bg-sky-100 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300",
+                  )}>
+                    <UserRound className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{g.label}</p>
+                    <p className="text-xs text-muted-foreground">{g.sub}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Accent chips */}
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Accent</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {ACCENT_OPTIONS.map((a) => {
+                const active = currentAccent === a.id;
+                const supported = availableAccentsForGender.has(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => supported && setAccent(a.id)}
+                    disabled={!settings.enabled || !supported}
+                    title={supported ? undefined : `Not available for ${currentGender} voice`}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-left transition-all",
+                      active && supported
+                        ? "border-violet-400 bg-background ring-2 ring-violet-200 dark:ring-violet-900/60"
+                        : supported
+                          ? "border-border bg-background/40 hover:border-violet-200 hover:bg-background"
+                          : "border-dashed border-border/60 bg-muted/30 text-muted-foreground/60",
+                    )}
+                  >
+                    <p className="text-sm font-semibold text-foreground">{a.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{a.sub}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Live preview */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-violet-200/70 bg-background/70 p-3 dark:border-violet-900/40">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
+                <Mic className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">{currentPreset.label}</p>
+                <p className="text-xs text-muted-foreground">{currentPreset.blurb}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={playSample}
+              disabled={!settings.enabled}
+              className="h-9 shrink-0 gap-1.5"
+            >
+              {previewing ? (
+                <>
+                  <Pause className="h-3.5 w-3.5" />
+                  <span className="inline-flex items-center gap-1">
+                    Playing
+                    <span className="ml-0.5 inline-flex items-end gap-[2px]" aria-hidden>
+                      <span className="block h-2 w-[2px] animate-pulse rounded-sm bg-violet-500" style={{ animationDelay: "0ms" }} />
+                      <span className="block h-3 w-[2px] animate-pulse rounded-sm bg-violet-500" style={{ animationDelay: "120ms" }} />
+                      <span className="block h-2 w-[2px] animate-pulse rounded-sm bg-violet-500" style={{ animationDelay: "240ms" }} />
+                    </span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-3.5 w-3.5" />
+                  Listen to a sample
+                </>
+              )}
+            </Button>
+          </div>
+        </Section>
+
+        {/* ───────────── 2. How it talks ───────────── */}
+        <Section
+          eyebrow="Step 2"
+          title="How it talks"
+          description="Personality, pace, and how patient it is on the phone."
+        >
+          <ChipGroup
+            label="Personality"
+            options={PERSONALITY_OPTIONS}
+            value={currentPersonality}
+            onChange={setPersonality}
+            disabled={!settings.enabled}
+          />
+          <ChipGroup
+            label="Speaking pace"
+            options={PACE_OPTIONS}
+            value={currentPace}
+            onChange={setPace}
+            disabled={!settings.enabled}
+          />
+          <ChipGroup
+            label="Response speed"
+            help="How long to wait when a caller pauses."
+            options={RESPONSE_SPEED_OPTIONS}
+            value={settings.responseSpeed}
+            onChange={(id) => onUpdate({ responseSpeed: id })}
+            disabled={!settings.enabled}
+          />
+          <ChipGroup
+            label="Answer variety"
+            help="Same wording every time vs. natural variation."
+            options={CONVERSATION_STYLE_OPTIONS}
+            value={settings.conversationStyle}
+            onChange={(id) => onUpdate({ conversationStyle: id })}
+            disabled={!settings.enabled}
+          />
+        </Section>
+
+        {/* ───────────── 3. Languages ───────────── */}
+        <Section
+          eyebrow="Step 3"
+          title="Languages"
+          description="Which languages your AI understands and can reply in."
+        >
+          <SupportedLanguagesPanel multilingualCapable={currentPreset.multilingualCapable} />
+        </Section>
+
+        {/* ───────────── 4. Recording, transcripts & legal ───────────── */}
+        <Section
+          eyebrow="Step 4"
+          title="Recording, transcripts & legal"
+          description="Capture calls for QA — and stay compliant automatically."
+        >
+          <ToggleRow
+            icon={<CircleDot className={cn("h-3.5 w-3.5", settings.recordingEnabled && "text-rose-600")} />}
+            iconClass={cn(
+              "bg-rose-100/70 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+              settings.recordingEnabled && "ring-2 ring-rose-200 dark:ring-rose-900/60",
+            )}
+            title="Record audio"
+            description="Save call audio for quality assurance, training, and dispute resolution."
+            checked={settings.recordingEnabled}
+            onChange={(v) => onUpdate({ recordingEnabled: v })}
+            disabled={!settings.enabled}
+            switchClass={greenSwitch}
+          />
+          <ToggleRow
+            icon={<FileText className="h-3.5 w-3.5" />}
+            iconClass="bg-sky-100/70 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+            title="Generate transcripts"
+            description="Searchable text transcripts of every call, attached to the lead/resident profile."
+            checked={settings.transcriptionEnabled}
+            onChange={(v) => onUpdate({ transcriptionEnabled: v })}
+            disabled={!settings.enabled}
+            switchClass={greenSwitch}
+          />
+
+          {/* Auto-played legal disclosure — appears as a "live banner" when recording is on */}
+          {recordingActive ? (
+            <div className="rounded-lg border border-emerald-300/60 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <Scale className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Played automatically before every call connects
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Two-party consent compliance for CA, CT, FL, IL, MA, MD, MT, NH, PA, WA, and others.
+                    </p>
+                  </div>
+                </div>
+                {!isDefaultLegal && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onUpdate({ legalDisclosure: RECOMMENDED_LEGAL_DISCLOSURE })}
+                    className="h-7 shrink-0 gap-1 text-xs"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Reset
+                  </Button>
+                )}
+              </div>
+              <textarea
+                value={settings.legalDisclosure}
+                onChange={(e) => onUpdate({ legalDisclosure: e.target.value })}
+                disabled={!settings.enabled}
+                rows={3}
+                maxLength={500}
+                className={cn(
+                  "w-full resize-none rounded-md border border-emerald-300/60 bg-background px-3 py-2 text-sm shadow-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400",
+                  "disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/40",
+                )}
+              />
+              <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <CircleDot className="h-2.5 w-2.5 text-rose-500" />
+                  Auto-played in the AI voice you selected above
+                </span>
+                <span>{settings.legalDisclosure.length}/500</span>
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Turn on recording or transcripts above to configure the legal disclosure played before each call.
+            </p>
+          )}
+        </Section>
+
+        {/* ───────────── 5. Advanced (collapsible) ───────────── */}
+        <details className="group rounded-lg border border-dashed border-border bg-background/40">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-foreground select-none">
+            <span className="flex items-center gap-2">
+              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+              Advanced — greeting, hold phrase, and call limits
+            </span>
+            <span className="text-[10px] font-normal text-muted-foreground">Most operators leave these alone</span>
+          </summary>
+          <div className="space-y-4 border-t border-border/60 px-4 py-4">
+            <div>
+              <label htmlFor="greeting" className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <MessageSquareQuote className="h-3.5 w-3.5 text-muted-foreground" />
+                Greeting (first thing the AI says)
+              </label>
+              <textarea
+                id="greeting"
+                value={settings.greeting}
+                onChange={(e) => onUpdate({ greeting: e.target.value })}
+                disabled={!settings.enabled}
+                rows={2}
+                maxLength={240}
+                className={cn(
+                  "w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                )}
+                placeholder="Thank you for calling {property}. How can I help?"
+              />
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Use <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{"{property}"}</code> to insert the property name automatically.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="hold" className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                Hold phrase (when the AI is looking something up)
+              </label>
+              <input
+                id="hold"
+                type="text"
+                value={settings.holdPhrase}
+                onChange={(e) => onUpdate({ holdPhrase: e.target.value })}
+                disabled={!settings.enabled}
+                maxLength={140}
+                className={cn(
+                  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
+                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                )}
+                placeholder="One moment while I pull that up for you."
+              />
+            </div>
+
+            <div>
+              <label htmlFor="maxlen" className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                Maximum call length: <span className="font-semibold text-foreground">{settings.maxCallMinutes} minutes</span>
+              </label>
+              <input
+                id="maxlen"
+                type="range"
+                min={5}
+                max={60}
+                step={5}
+                value={settings.maxCallMinutes}
+                onChange={(e) => onUpdate({ maxCallMinutes: Number(e.target.value) })}
+                disabled={!settings.enabled}
+                className="w-full accent-violet-500"
+              />
+              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                <span>5 min</span>
+                <span>If a call runs long, the AI offers to transfer or schedule a callback.</span>
+                <span>60 min</span>
+              </div>
+            </div>
+
+            <ToggleRow
+              icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              iconClass="bg-violet-100/70 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200"
+              title="Disclose to callers that they're speaking with an AI"
+              description="Adds a short AI disclosure on first call. Required by law in some states (e.g. CA, CO)."
+              checked={settings.aiDisclosure}
+              onChange={(v) => onUpdate({ aiDisclosure: v })}
+              disabled={!settings.enabled}
+              switchClass={greenSwitch}
+            />
+          </div>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── Tiny presentational helpers used inside AIVoiceCard ─── */
+
+function Section({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline gap-2">
+        <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/30 dark:text-violet-300">
+          {eyebrow}
+        </span>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="space-y-3 pt-1">{children}</div>
+    </section>
+  );
+}
+
+type ChipOption<T extends string> = { id: T; label: string; sub: string };
+
+function ChipGroup<T extends string>({
+  label,
+  help,
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  help?: string;
+  options: ReadonlyArray<ChipOption<T>>;
+  value: T;
+  onChange: (id: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <p className="text-xs font-medium text-foreground">{label}</p>
+        {help && <p className="text-[10px] text-muted-foreground">{help}</p>}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {options.map((o) => {
+          const active = value === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onChange(o.id)}
+              disabled={disabled}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-left transition-all",
+                active
+                  ? "border-violet-400 bg-background ring-2 ring-violet-200 dark:ring-violet-900/60"
+                  : "border-border bg-background/40 hover:border-violet-200 hover:bg-background",
+              )}
+            >
+              <p className="text-sm font-semibold text-foreground">{o.label}</p>
+              <p className="text-[10px] text-muted-foreground">{o.sub}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ToggleRow({
+  icon,
+  iconClass,
+  title,
+  description,
+  checked,
+  onChange,
+  disabled,
+  switchClass,
+}: {
+  icon: React.ReactNode;
+  iconClass: string;
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  switchClass?: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background/60 p-3.5">
+      <div className="flex items-start gap-2.5">
+        <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md", iconClass)}>
+          {icon}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+        aria-label={title}
+        className={switchClass}
+      />
+    </div>
+  );
+}
+
+/**
+ * Read-only panel showing the languages Nova 2 Sonic responds in when it detects them.
+ * Only the polyglot voices (Tiffany / Matthew, both American) can do this; for other accents
+ * we show the same list but muted with an explanation.
+ */
+function SupportedLanguagesPanel({ multilingualCapable }: { multilingualCapable: boolean }) {
+  return (
+    <div className="rounded-lg border border-border bg-background/60 p-3.5">
+      <div className="mb-3 flex items-start gap-2.5">
+        <div
+          className={cn(
+            "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+            multilingualCapable
+              ? "bg-violet-100/70 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          <Globe2 className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground">Speaks the caller&apos;s language automatically</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {multilingualCapable
+              ? "If your caller speaks any of these languages, the AI will detect it and reply in that language — no setup required."
+              : "Available with the American accent only — switch to Tiffany or Matthew to enable multilingual replies."}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {SUPPORTED_LANGUAGES.map((lang) => (
+          <span
+            key={lang.code}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
+              multilingualCapable
+                ? "border-violet-200/70 bg-violet-50/50 text-foreground dark:border-violet-900/40 dark:bg-violet-950/20"
+                : "border-dashed border-border bg-muted/30 text-muted-foreground",
+            )}
+          >
+            <span aria-hidden className="text-sm leading-none">{lang.flag}</span>
+            {lang.name}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
