@@ -1,0 +1,11 @@
+{
+  "extends": "next/core-web-vitals",
+  "overrides": [
+    {
+      "files": ["components/eli-plus-setup/**/*.tsx"],
+      "rules": {
+        "react/no-unescaped-entities": "off"
+      }
+    }
+  ]
+}
