@@ -24,6 +24,7 @@ import { ClickToCallDemoProvider } from "@/lib/click-to-call-demo-context";
 import { ConversationsDemoProvider } from "@/lib/conversations-demo-context";
 import { R1ReleaseProvider } from "@/lib/r1-release-context";
 import { R1_2ReleaseProvider } from "@/lib/r1-2-release-context";
+import { VoiceV1_1Provider } from "@/lib/voice-v1-1-context";
 
 import { EliEmailsProvider } from "@/lib/eli-emails-context";
 import { EliPlusSetupProvider } from "@/lib/eli-plus-setup-context";
@@ -88,6 +89,7 @@ export default function RootLayout({
         <ClickToCallDemoProvider>
         <R1ReleaseProvider>
         <R1_2ReleaseProvider>
+        <VoiceV1_1Provider>
         <RoleProvider>
         <PermissionsProvider>
         <FeatureEntitlementsProvider>
@@ -127,6 +129,7 @@ export default function RootLayout({
         </FeatureEntitlementsProvider>
         </PermissionsProvider>
         </RoleProvider>
+        </VoiceV1_1Provider>
         </R1_2ReleaseProvider>
         </R1ReleaseProvider>
         </ClickToCallDemoProvider>
