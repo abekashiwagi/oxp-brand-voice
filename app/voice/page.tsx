@@ -19,6 +19,12 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   Building2, Layers, Home,
@@ -58,8 +64,6 @@ const MOCK_PROPERTIES = [
 
 type VoiceGender = "female" | "male";
 type VoiceAccent = "american" | "british" | "australian" | "indian";
-type VoicePace = "relaxed" | "natural" | "brisk";
-type VoicePersonality = "friendly" | "professional" | "energetic";
 
 const VOICE_PRESETS: Array<{
   gender: VoiceGender;
@@ -84,45 +88,6 @@ const ACCENT_OPTIONS: Array<{ id: VoiceAccent; label: string; sub: string }> = [
   { id: "indian",     label: "Indian",     sub: "Indian English" },
 ];
 
-const PACE_OPTIONS: Array<{ id: VoicePace; rate: number; label: string; sub: string }> = [
-  { id: "relaxed", rate: 0.92, label: "Relaxed", sub: "Slower, calmer" },
-  { id: "natural", rate: 1.00, label: "Natural", sub: "Default pace" },
-  { id: "brisk",   rate: 1.08, label: "Brisk",   sub: "A bit faster" },
-];
-
-const PERSONALITY_OPTIONS: Array<{
-  id: VoicePersonality;
-  style: NovaSonicSettingsType["speakingStyle"];
-  label: string;
-  sub: string;
-}> = [
-  { id: "friendly",     style: "conversational", label: "Friendly",     sub: "Warm and casual"  },
-  { id: "professional", style: "generative",     label: "Professional", sub: "Polished default" },
-  { id: "energetic",    style: "expressive",     label: "Energetic",    sub: "Lively and animated" },
-];
-
-/* Conversation behavior — maps to Nova `endpointingSensitivity` */
-const RESPONSE_SPEED_OPTIONS: Array<{
-  id: NovaSonicSettingsType["responseSpeed"];
-  label: string;
-  sub: string;
-}> = [
-  { id: "snappy",   label: "Snappy",   sub: "Quick replies (~1.5s)" },
-  { id: "balanced", label: "Balanced", sub: "Default (~1.75s)" },
-  { id: "patient",  label: "Patient",  sub: "Wait longer (~2s)" },
-];
-
-/* Conversation style — maps to Nova `temperature` */
-const CONVERSATION_STYLE_OPTIONS: Array<{
-  id: NovaSonicSettingsType["conversationStyle"];
-  label: string;
-  sub: string;
-}> = [
-  { id: "scripted", label: "Consistent", sub: "Same answers every time" },
-  { id: "balanced", label: "Balanced",   sub: "A little variety" },
-  { id: "creative", label: "Natural",    sub: "More conversational variation" },
-];
-
 /** Recommended consent script — used as default and "Reset to recommended" target. */
 const RECOMMENDED_LEGAL_DISCLOSURE =
   "This call is being recorded and transcribed for quality assurance and training purposes. " +
@@ -145,12 +110,6 @@ function findPresetByVoiceId(id: NovaSonicSettingsType["voiceId"]) {
 
 function findPreset(gender: VoiceGender, accent: VoiceAccent) {
   return VOICE_PRESETS.find((p) => p.gender === gender && p.accent === accent);
-}
-
-function rateToPace(rate: number): VoicePace {
-  if (rate <= 0.95) return "relaxed";
-  if (rate >= 1.05) return "brisk";
-  return "natural";
 }
 
 
@@ -201,27 +160,27 @@ export default function VoicePage() {
                     <CardTitle className="text-base">Brand Identity</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-foreground">AI Persona</label>
-                      <input
-                        type="text"
+                    <div className="space-y-1.5">
+                      <label htmlFor="company-persona" className="block text-sm font-medium text-foreground">AI Persona</label>
+                      <Input
+                        id="company-persona"
                         value={voice.persona}
                         onChange={(e) => voice.update({ persona: e.target.value })}
-                        className="input-base"
                         placeholder="e.g. Helpful property assistant"
                       />
-                      <p className="mt-1 text-xs text-muted-foreground">How your AI agents identify themselves in conversations.</p>
+                      <p className="text-xs text-muted-foreground">How your AI agents identify themselves in conversations.</p>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-foreground">Brand & Tone Guidelines</label>
-                      <textarea
+                    <div className="space-y-1.5">
+                      <label htmlFor="company-branding-tone" className="block text-sm font-medium text-foreground">Brand &amp; Tone Guidelines</label>
+                      <Textarea
+                        id="company-branding-tone"
                         value={voice.brandingTone}
                         onChange={(e) => voice.update({ brandingTone: e.target.value })}
                         rows={6}
-                        className="input-base resize-y"
+                        className="resize-y"
                         placeholder="e.g. Professional and friendly. Always identify as an assistant for the property."
                       />
-                      <p className="mt-1 text-xs text-muted-foreground">These guidelines apply as defaults across all agents and properties.</p>
+                      <p className="text-xs text-muted-foreground">These guidelines apply as defaults across all agents and properties.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -250,18 +209,17 @@ export default function VoicePage() {
                     <ul className="space-y-2">
                       {voice.doExamples.map((ex, i) => (
                         <li key={i} className="flex items-start gap-2 text-sm">
-                          <span className="mt-0.5 text-emerald-600">&#10003;</span>
-                          <input
-                            type="text"
+                          <span className="mt-1.5 text-emerald-600">&#10003;</span>
+                          <Input
                             value={ex}
                             onChange={(e) => {
                               const next = [...voice.doExamples];
                               next[i] = e.target.value;
                               voice.update({ doExamples: next });
                             }}
-                            className="input-base h-8 flex-1 text-sm"
+                            className="h-8 flex-1"
                           />
-                          <button type="button" onClick={() => voice.update({ doExamples: voice.doExamples.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-foreground">
+                          <button type="button" onClick={() => voice.update({ doExamples: voice.doExamples.filter((_, j) => j !== i) })} className="mt-1.5 text-muted-foreground hover:text-foreground">
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </li>
@@ -281,18 +239,17 @@ export default function VoicePage() {
                     <ul className="space-y-2">
                       {voice.dontExamples.map((ex, i) => (
                         <li key={i} className="flex items-start gap-2 text-sm">
-                          <span className="mt-0.5 text-red-600">&#10007;</span>
-                          <input
-                            type="text"
+                          <span className="mt-1.5 text-red-600">&#10007;</span>
+                          <Input
                             value={ex}
                             onChange={(e) => {
                               const next = [...voice.dontExamples];
                               next[i] = e.target.value;
                               voice.update({ dontExamples: next });
                             }}
-                            className="input-base h-8 flex-1 text-sm"
+                            className="h-8 flex-1"
                           />
-                          <button type="button" onClick={() => voice.update({ dontExamples: voice.dontExamples.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-foreground">
+                          <button type="button" onClick={() => voice.update({ dontExamples: voice.dontExamples.filter((_, j) => j !== i) })} className="mt-1.5 text-muted-foreground hover:text-foreground">
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </li>
@@ -434,17 +391,22 @@ export default function VoicePage() {
                             </div>
                           </td>
                           <td>
-                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", config?.bgColor, config?.color)}>
+                            <Badge variant="outline" className={cn("border-transparent text-[10px]", config?.bgColor, config?.color)}>
                               {prop.vertical}
-                            </span>
+                            </Badge>
                           </td>
                           <td>
-                            <span className={cn(
-                              "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium",
-                              override ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                            )}>
+                            <Badge
+                              variant={override ? "default" : "secondary"}
+                              className={cn(
+                                "text-[10px]",
+                                override
+                                  ? "border-transparent bg-primary/10 text-primary hover:bg-primary/15"
+                                  : undefined,
+                              )}
+                            >
                               {source}
-                            </span>
+                            </Badge>
                           </td>
                           <td>
                             <div className="flex gap-1">
@@ -484,9 +446,9 @@ export default function VoicePage() {
                               <div className="flex items-center gap-2">
                                 <h4 className="text-sm font-semibold text-foreground">{ov.property}</h4>
                                 {ov.vertical && config && (
-                                  <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-medium", config.bgColor, config.color)}>
+                                  <Badge variant="outline" className={cn("border-transparent text-[9px]", config.bgColor, config.color)}>
                                     {ov.vertical}
-                                  </span>
+                                  </Badge>
                                 )}
                               </div>
                               {ov.persona && <p className="mt-0.5 text-xs text-muted-foreground">Persona: {ov.persona}</p>}
@@ -709,9 +671,6 @@ function AIVoiceCard({
   const currentPreset = findPresetByVoiceId(settings.voiceId);
   const currentGender = currentPreset.gender;
   const currentAccent = currentPreset.accent;
-  const currentPace = rateToPace(settings.speakingRate);
-  const currentPersonality =
-    PERSONALITY_OPTIONS.find((p) => p.style === settings.speakingStyle)?.id ?? "professional";
 
   // Accents that have a voice for the currently selected gender.
   const availableAccentsForGender = new Set(
@@ -754,16 +713,6 @@ function AIVoiceCard({
       voiceId: target.voiceId,
       polyglot: target.multilingualCapable,
     });
-  };
-
-  const setPace = (pace: VoicePace) => {
-    const opt = PACE_OPTIONS.find((p) => p.id === pace);
-    if (opt) onUpdate({ speakingRate: opt.rate });
-  };
-
-  const setPersonality = (id: VoicePersonality) => {
-    const opt = PERSONALITY_OPTIONS.find((p) => p.id === id);
-    if (opt) onUpdate({ speakingStyle: opt.style });
   };
 
   const isDefaultLegal = settings.legalDisclosure.trim() === RECOMMENDED_LEGAL_DISCLOSURE.trim();
@@ -915,56 +864,18 @@ function AIVoiceCard({
           </div>
         </Section>
 
-        {/* ───────────── 2. How it talks ───────────── */}
+        {/* ───────────── 2. Languages ───────────── */}
         <Section
           eyebrow="Step 2"
-          title="How it talks"
-          description="Personality, pace, and how patient it is on the phone."
-        >
-          <ChipGroup
-            label="Personality"
-            options={PERSONALITY_OPTIONS}
-            value={currentPersonality}
-            onChange={setPersonality}
-            disabled={!settings.enabled}
-          />
-          <ChipGroup
-            label="Speaking pace"
-            options={PACE_OPTIONS}
-            value={currentPace}
-            onChange={setPace}
-            disabled={!settings.enabled}
-          />
-          <ChipGroup
-            label="Response speed"
-            help="How long to wait when a caller pauses."
-            options={RESPONSE_SPEED_OPTIONS}
-            value={settings.responseSpeed}
-            onChange={(id) => onUpdate({ responseSpeed: id })}
-            disabled={!settings.enabled}
-          />
-          <ChipGroup
-            label="Answer variety"
-            help="Same wording every time vs. natural variation."
-            options={CONVERSATION_STYLE_OPTIONS}
-            value={settings.conversationStyle}
-            onChange={(id) => onUpdate({ conversationStyle: id })}
-            disabled={!settings.enabled}
-          />
-        </Section>
-
-        {/* ───────────── 3. Languages ───────────── */}
-        <Section
-          eyebrow="Step 3"
           title="Languages"
           description="Which languages your AI understands and can reply in."
         >
           <SupportedLanguagesPanel multilingualCapable={currentPreset.multilingualCapable} />
         </Section>
 
-        {/* ───────────── 4. Recording, transcripts & legal ───────────── */}
+        {/* ───────────── 3. Recording, transcripts & legal ───────────── */}
         <Section
-          eyebrow="Step 4"
+          eyebrow="Step 3"
           title="Recording, transcripts & legal"
           description="Capture calls for QA — and stay compliant automatically."
         >
@@ -1022,17 +933,13 @@ function AIVoiceCard({
                   </Button>
                 )}
               </div>
-              <textarea
+              <Textarea
                 value={settings.legalDisclosure}
                 onChange={(e) => onUpdate({ legalDisclosure: e.target.value })}
                 disabled={!settings.enabled}
                 rows={3}
                 maxLength={500}
-                className={cn(
-                  "w-full resize-none rounded-md border border-emerald-300/60 bg-background px-3 py-2 text-sm shadow-sm",
-                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400",
-                  "disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/40",
-                )}
+                className="resize-none border-emerald-300/60 bg-background focus-visible:ring-emerald-400 dark:border-emerald-900/40"
               />
               <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
@@ -1059,47 +966,38 @@ function AIVoiceCard({
             <span className="text-[10px] font-normal text-muted-foreground">Most operators leave these alone</span>
           </summary>
           <div className="space-y-4 border-t border-border/60 px-4 py-4">
-            <div>
-              <label htmlFor="greeting" className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+            <div className="space-y-1.5">
+              <label htmlFor="greeting" className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                 <MessageSquareQuote className="h-3.5 w-3.5 text-muted-foreground" />
                 Greeting (first thing the AI says)
               </label>
-              <textarea
+              <Textarea
                 id="greeting"
                 value={settings.greeting}
                 onChange={(e) => onUpdate({ greeting: e.target.value })}
                 disabled={!settings.enabled}
                 rows={2}
                 maxLength={240}
-                className={cn(
-                  "w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                )}
+                className="resize-none bg-background"
                 placeholder="Thank you for calling {property}. How can I help?"
               />
-              <p className="mt-1 text-[10px] text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 Use <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">{"{property}"}</code> to insert the property name automatically.
               </p>
             </div>
 
-            <div>
-              <label htmlFor="hold" className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
+            <div className="space-y-1.5">
+              <label htmlFor="hold" className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                 Hold phrase (when the AI is looking something up)
               </label>
-              <input
+              <Input
                 id="hold"
-                type="text"
                 value={settings.holdPhrase}
                 onChange={(e) => onUpdate({ holdPhrase: e.target.value })}
                 disabled={!settings.enabled}
                 maxLength={140}
-                className={cn(
-                  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
-                  "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                )}
+                className="bg-background"
                 placeholder="One moment while I pull that up for you."
               />
             </div>
@@ -1168,55 +1066,6 @@ function Section({
       <p className="text-xs text-muted-foreground">{description}</p>
       <div className="space-y-3 pt-1">{children}</div>
     </section>
-  );
-}
-
-type ChipOption<T extends string> = { id: T; label: string; sub: string };
-
-function ChipGroup<T extends string>({
-  label,
-  help,
-  options,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  help?: string;
-  options: ReadonlyArray<ChipOption<T>>;
-  value: T;
-  onChange: (id: T) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <p className="text-xs font-medium text-foreground">{label}</p>
-        {help && <p className="text-[10px] text-muted-foreground">{help}</p>}
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {options.map((o) => {
-          const active = value === o.id;
-          return (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => onChange(o.id)}
-              disabled={disabled}
-              className={cn(
-                "rounded-lg border px-3 py-2 text-left transition-all",
-                active
-                  ? "border-violet-400 bg-background ring-2 ring-violet-200 dark:ring-violet-900/60"
-                  : "border-border bg-background/40 hover:border-violet-200 hover:bg-background",
-              )}
-            >
-              <p className="text-sm font-semibold text-foreground">{o.label}</p>
-              <p className="text-[10px] text-muted-foreground">{o.sub}</p>
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -1355,12 +1204,15 @@ function AgentTuningCard({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-foreground">{displayName}</h3>
-                <span className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[9px] font-medium",
-                  isOff ? "bg-muted text-muted-foreground" : "bg-[#B3FFCC] text-green-800",
-                )}>
+                <Badge
+                  variant={isOff ? "secondary" : "outline"}
+                  className={cn(
+                    "text-[9px]",
+                    !isOff && "border-transparent bg-[#B3FFCC] text-green-800 hover:bg-[#a5f0bf]",
+                  )}
+                >
                   {status}
-                </span>
+                </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
                 {tuning.toneOverride || "Using default tone"} · {tuning.responseLength ?? "standard"} responses
@@ -1388,39 +1240,47 @@ function AgentTuningCard({
               <p><span className="font-medium text-foreground">Instructions:</span> <span className="text-muted-foreground">{tuning.customInstructions}</span></p>
             )}
             <div className="flex items-center gap-3">
-              <span className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                tuning.allowEmoji ? "bg-[#B3FFCC] text-black" : "bg-muted text-muted-foreground",
-              )}>
+              <Badge
+                variant={tuning.allowEmoji ? "outline" : "secondary"}
+                className={cn(
+                  "text-[10px]",
+                  tuning.allowEmoji && "border-transparent bg-[#B3FFCC] text-black hover:bg-[#a5f0bf]",
+                )}
+              >
                 Emoji: {tuning.allowEmoji ? "On" : "Off"}
-              </span>
+              </Badge>
             </div>
           </div>
         ) : (
           <div className="mt-4 space-y-4">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Tone override</label>
-              <input type="text" value={tone} onChange={(e) => setTone(e.target.value)} className="input-base h-8 text-sm" placeholder="e.g. Enthusiastic and sales-oriented" />
+            <div className="space-y-1.5">
+              <label htmlFor={`tone-${tuning.agentId}`} className="block text-xs font-medium text-muted-foreground">Tone override</label>
+              <Input id={`tone-${tuning.agentId}`} value={tone} onChange={(e) => setTone(e.target.value)} className="h-8" placeholder="e.g. Enthusiastic and sales-oriented" />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Personality</label>
-              <input type="text" value={personality} onChange={(e) => setPersonality(e.target.value)} className="input-base h-8 text-sm" placeholder="e.g. Excited about helping people find their new home" />
+            <div className="space-y-1.5">
+              <label htmlFor={`personality-${tuning.agentId}`} className="block text-xs font-medium text-muted-foreground">Personality</label>
+              <Input id={`personality-${tuning.agentId}`} value={personality} onChange={(e) => setPersonality(e.target.value)} className="h-8" placeholder="e.g. Excited about helping people find their new home" />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Custom instructions</label>
-              <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} className="input-base resize-y text-sm" placeholder="e.g. Always mention current specials." />
+            <div className="space-y-1.5">
+              <label htmlFor={`instructions-${tuning.agentId}`} className="block text-xs font-medium text-muted-foreground">Custom instructions</label>
+              <Textarea id={`instructions-${tuning.agentId}`} value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} className="resize-y" placeholder="e.g. Always mention current specials." />
             </div>
-            <div className="flex items-center gap-6">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Response length</label>
-                <select value={responseLength} onChange={(e) => setResponseLength(e.target.value as "concise" | "standard" | "detailed")} className="select-base h-8 text-sm">
-                  <option value="concise">Concise</option>
-                  <option value="standard">Standard</option>
-                  <option value="detailed">Detailed</option>
-                </select>
+            <div className="flex items-end gap-6">
+              <div className="space-y-1.5">
+                <label htmlFor={`length-${tuning.agentId}`} className="block text-xs font-medium text-muted-foreground">Response length</label>
+                <Select value={responseLength} onValueChange={(v) => setResponseLength(v as "concise" | "standard" | "detailed")}>
+                  <SelectTrigger id={`length-${tuning.agentId}`} className="h-8 w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="concise">Concise</SelectItem>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="detailed">Detailed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <label className="flex items-center gap-2 pt-4">
-                <input type="checkbox" checked={allowEmoji} onChange={(e) => setAllowEmoji(e.target.checked)} className="h-4 w-4 rounded border-border" />
+              <label className="flex items-center gap-2 pb-1.5">
+                <Checkbox checked={allowEmoji} onCheckedChange={(v) => setAllowEmoji(v === true)} />
                 <span className="text-sm text-foreground">Allow emoji</span>
               </label>
             </div>
@@ -1471,13 +1331,13 @@ function VerticalEditDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Persona</label>
-            <input type="text" value={persona} onChange={(e) => setPersona(e.target.value)} className="input-base text-sm" placeholder="e.g. Friendly campus guide" />
+          <div className="space-y-1.5">
+            <label htmlFor="vertical-persona" className="block text-xs font-medium text-muted-foreground">Persona</label>
+            <Input id="vertical-persona" value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="e.g. Friendly campus guide" />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Brand & Tone Guidelines</label>
-            <textarea value={brandingTone} onChange={(e) => setBrandingTone(e.target.value)} rows={3} className="input-base resize-y text-sm" />
+          <div className="space-y-1.5">
+            <label htmlFor="vertical-tone" className="block text-xs font-medium text-muted-foreground">Brand &amp; Tone Guidelines</label>
+            <Textarea id="vertical-tone" value={brandingTone} onChange={(e) => setBrandingTone(e.target.value)} rows={3} className="resize-y" />
           </div>
           <div className="rounded-lg border border-border p-4">
             <p className="mb-3 text-xs font-medium text-foreground">Tone Profile</p>
@@ -1545,23 +1405,30 @@ function PropertyOverrideDialog({
 
         <div className="space-y-4">
           {!isEditing && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Property</label>
-              <select value={property} onChange={(e) => setProperty(e.target.value)} className="select-base w-full text-sm">
-                {available.map((p) => (
-                  <option key={p.name} value={p.name}>{p.name} ({p.vertical})</option>
-                ))}
-              </select>
+            <div className="space-y-1.5">
+              <label htmlFor="property-select" className="block text-xs font-medium text-muted-foreground">Property</label>
+              <Select value={property} onValueChange={setProperty}>
+                <SelectTrigger id="property-select">
+                  <SelectValue placeholder="Select a property" />
+                </SelectTrigger>
+                <SelectContent>
+                  {available.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name} ({p.vertical})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Persona override</label>
-            <input type="text" value={persona} onChange={(e) => setPersona(e.target.value)} className="input-base text-sm" placeholder="e.g. Luxury concierge" />
+          <div className="space-y-1.5">
+            <label htmlFor="property-persona" className="block text-xs font-medium text-muted-foreground">Persona override</label>
+            <Input id="property-persona" value={persona} onChange={(e) => setPersona(e.target.value)} placeholder="e.g. Luxury concierge" />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Brand & tone override</label>
-            <textarea value={brandingTone} onChange={(e) => setBrandingTone(e.target.value)} rows={3} className="input-base resize-y text-sm" placeholder="e.g. Upscale and sophisticated." />
+          <div className="space-y-1.5">
+            <label htmlFor="property-tone" className="block text-xs font-medium text-muted-foreground">Brand &amp; tone override</label>
+            <Textarea id="property-tone" value={brandingTone} onChange={(e) => setBrandingTone(e.target.value)} rows={3} className="resize-y" placeholder="e.g. Upscale and sophisticated." />
           </div>
 
           <div className="rounded-lg border border-border p-4">
